@@ -1,6 +1,7 @@
 import os
 import time
 import requests
+import jpholiday
 from datetime import datetime, timedelta
 from playwright.sync_api import sync_playwright
 
@@ -50,18 +51,26 @@ def notify_discord(message):
         print(f"❌ 通信エラーが発生しました: {e}")
 
 def get_target_dates():
-    """今日から1ヶ月以内の「土曜日」と「日曜日」の日付リストを取得する"""
+    """今日から1ヶ月以内の「土日・祝日」の日付リストを取得する"""
     target_dates = []
     today = datetime.now()
     
     # 約1ヶ月(31日)分チェック（当日は予約不可のため、1日後から開始）
     for i in range(1, 32):
         target_date = today + timedelta(days=i)
-        # weekday() は 5:土曜日, 6:日曜日
-        if target_date.weekday() in [5, 6]:
+        
+        # weekday() は 5:土曜日, 6:日曜日、または祝日判定
+        is_weekend_or_holiday = target_date.weekday() in [5, 6] or jpholiday.is_holiday(target_date.date())
+        
+        if is_weekend_or_holiday:
             date_str = target_date.strftime("%Y-%m-%d")
             weekday_ja = ["月", "火", "水", "木", "金", "土", "日"]
-            display_str = f"{target_date.strftime('%Y/%m/%d')}({weekday_ja[target_date.weekday()]})"
+            
+            if jpholiday.is_holiday(target_date.date()):
+                holiday_name = jpholiday.is_holiday_name(target_date.date())
+                display_str = f"{target_date.strftime('%Y/%m/%d')}(祝/{holiday_name})"
+            else:
+                display_str = f"{target_date.strftime('%Y/%m/%d')}({weekday_ja[target_date.weekday()]})"
             
             target_dates.append({
                 "query_date": date_str,      

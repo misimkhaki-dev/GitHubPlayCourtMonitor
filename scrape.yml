@@ -2,7 +2,8 @@ name: Playcourt Availability Checker
 
 on:
   schedule:
-    - cron: '21 * * * *'
+    # 日本時間 (JST) の 07:00〜23:00 に実行する (UTCでは 22:00-23:00, 00:00-14:00)
+    - cron: '21 22,23,0-14 * * *'
   workflow_dispatch:
 
 jobs:

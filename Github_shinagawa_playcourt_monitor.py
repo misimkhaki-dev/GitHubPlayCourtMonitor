@@ -1,4 +1,5 @@
 import os
+import re
 import time
 import requests
 import jpholiday
@@ -51,7 +52,7 @@ def notify_discord(message):
         print(f"❌ 通信エラーが発生しました: {e}")
 
 def get_target_dates():
-    """今日から1ヶ月以内の「土日・祝日」の日付リストを取得する"""
+    """今日から1ヶ月以内の対象日付リストを取得する"""
     target_dates = []
     today = datetime.now()
     
@@ -62,20 +63,20 @@ def get_target_dates():
         # weekday() は 5:土曜日, 6:日曜日、または祝日判定
         is_weekend_or_holiday = target_date.weekday() in [5, 6] or jpholiday.is_holiday(target_date.date())
         
-        if is_weekend_or_holiday:
-            date_str = target_date.strftime("%Y-%m-%d")
-            weekday_ja = ["月", "火", "水", "木", "金", "土", "日"]
-            
-            if jpholiday.is_holiday(target_date.date()):
-                holiday_name = jpholiday.is_holiday_name(target_date.date())
-                display_str = f"{target_date.strftime('%Y/%m/%d')}(祝/{holiday_name})"
-            else:
-                display_str = f"{target_date.strftime('%Y/%m/%d')}({weekday_ja[target_date.weekday()]})"
-            
-            target_dates.append({
-                "query_date": date_str,      
-                "display_date": display_str  
-            })
+        date_str = target_date.strftime("%Y-%m-%d")
+        weekday_ja = ["月", "火", "水", "木", "金", "土", "日"]
+        
+        if jpholiday.is_holiday(target_date.date()):
+            holiday_name = jpholiday.is_holiday_name(target_date.date())
+            display_str = f"{target_date.strftime('%Y/%m/%d')}(祝/{holiday_name})"
+        else:
+            display_str = f"{target_date.strftime('%Y/%m/%d')}({weekday_ja[target_date.weekday()]})"
+        
+        target_dates.append({
+            "query_date": date_str,      
+            "display_date": display_str,
+            "is_weekend_or_holiday": is_weekend_or_holiday
+        })
             
     return target_dates
 
@@ -90,7 +91,7 @@ def check_availability():
         context = browser.new_context()
         page = context.new_page()
 
-        # 対象日（土日）ごとにURLを開いてチェック
+        # 対象日ごとにURLを開いてチェック
         for target in target_dates:
             url = f"{BASE_URL}?date_from={target['query_date']}"
             print(f"確認中: {target['display_date']} -> {url}")
@@ -208,6 +209,14 @@ def check_availability():
                         
                     # ★ セルの中に「FULL」要素が一切なく、かつ「プレイコート予約」が含まれていれば真の空き枠
                     if not d["isFull"] and d["hasReserveWord"]:
+                        # 平日の場合は18時以降のみを対象とする
+                        if not target["is_weekend_or_holiday"]:
+                            m = re.search(r"(\d{1,2}):(\d{2})", d["text"])
+                            if m:
+                                hour = int(m.group(1))
+                                if hour < 18:
+                                    continue
+                                    
                         found_msg = f"・ {target['display_date']} {d['text']} ({court_name})"
                         if found_msg not in available_slots:
                             available_slots.append(found_msg)
